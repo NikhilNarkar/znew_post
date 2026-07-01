@@ -431,6 +431,7 @@ oLocalModel.refresh(true);
     return fUsedQty;
 },
 
+// get remaining quantity for a batch selection considering already used quantities in other rows
 _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
     var fAvailableQty = parseFloat(oBatchData.QTY) || 0;
     var fUsedQty = this._getUsedQtyForBatch(oBatchData.Batch, sCurrentPath);
