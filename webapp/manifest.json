@@ -15,17 +15,7 @@
       "version": "1.27.0",
       "toolsId": "a0408577-3d03-4ff5-ab14-3775993d6c68"
     },
-    "dataSources": {
-      "mainService": {
-        "uri": "/sap/opu/odata4/sap/zsb_trnansfer_posting/srvd_a2x/sap/zsd_trnasfer_posting/0001/",
-        "type": "OData",
-        "settings": {
-          "annotations": [],
-          "localUri": "localService/mainService/metadata.xml",
-          "odataVersion": "4.0"
-        }
-      }
-    },
+x``
     "crossNavigation": {
       "inbounds": {
         "znew_post-Display": {
