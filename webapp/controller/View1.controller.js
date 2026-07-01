@@ -215,19 +215,28 @@ oLocalModel.refresh(true);
             var oView = this.getView();
 
             if (!this._oBatchValueHelpDialog) {
-                this._oBatchValueHelpDialog = new ValueHelpDialog({
-                    title: "Select Batch",
-                    supportMultiselect: false,
-                    supportRanges: false,
-                    key: "Batch",
-                    descriptionKey: "ProductDescription",
-                    ok: this._onBatchValueHelpOk.bind(this),
-                    cancel: this._onBatchValueHelpCancel.bind(this),
-                    afterClose: function () {}
-                });
+    this._oBatchValueHelpDialog = new ValueHelpDialog({
+        title: "Select Batch",
+        supportMultiselect: false,
+        supportRanges: false,
+        key: "Batch",
+        descriptionKey: "ProductDescription",
+        ok: this._onBatchValueHelpOk.bind(this),
+        cancel: this._onBatchValueHelpCancel.bind(this),
+        afterClose: function () {
+            if (this._sPendingNextFocusPath) {
+                var sPath = this._sPendingNextFocusPath;
+                this._sPendingNextFocusPath = null;
 
-                oView.addDependent(this._oBatchValueHelpDialog);
+                jQuery.sap.delayedCall(200, this, function () {
+                    this._focusNextFromBatchInput(sPath);
+                });
             }
+        }.bind(this)
+    });
+
+    oView.addDependent(this._oBatchValueHelpDialog);
+}
 
             var oDialog = this._oBatchValueHelpDialog;
 
@@ -270,6 +279,12 @@ oLocalModel.refresh(true);
                     if (oRowData.plant) {
                         aFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
                     }
+                    if (oRowData.salesOrder) {
+                        aFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
+                    }
+                    if (oRowData.salesOrderItem) {
+                        aFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
+                    }
 
                     var oRowsBinding = oTable.getBinding("rows");
                     if (oRowsBinding) {
@@ -301,7 +316,9 @@ oLocalModel.refresh(true);
                                 new Text({ text: "{Material}" }),
                                 new Text({ text: "{ProductDescription}" }),
                                 new Text({ text: "{QTY}" }),
-                                new Text({ text: "{Batch}" })
+                                new Text({ text: "{Batch}" }),
+                                new Text({ text: "{SDocument}" }),
+                                new Text({ text: "{SDocumentItem}" }),
                             ]
                         })
                     });
@@ -312,6 +329,14 @@ oLocalModel.refresh(true);
                     }
                     if (oRowData.plant) {
                         aMobileFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
+                    }
+
+                     if (oRowData.salesOrder) {
+                        aMobileFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
+                    }
+
+                     if (oRowData.salesOrderItem) {
+                        aMobileFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
                     }
 
                     var oItemsBinding = oTable.getBinding("items");
@@ -372,12 +397,14 @@ oLocalModel.refresh(true);
 
  this._setToBatchForRow(sPath);
 
-    oDialog.close();
+   this._sPendingNextFocusPath = sPath;
 
-    this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
-    this._insertFollowupRowIfNeeded(sPath);
+oDialog.close();
 
-    MessageToast.show("Batch selected successfully");
+this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
+this._insertFollowupRowIfNeeded(sPath);
+
+MessageToast.show("Batch selected successfully");
 },
 
         _onBatchValueHelpCancel: function () {
@@ -452,6 +479,14 @@ _isBatchFullyConsumed: function (oBatchData, sCurrentPath) {
 
     if (oRowData.material) {
         aFilters.push("Material eq '" + encodeURIComponent(oRowData.material) + "'");
+    }
+
+     if (oRowData.SalesOrder) {
+        aFilters.push("SDDocument eq '" + encodeURIComponent(oRowData.SalesOrder) + "'");
+    }
+
+     if (oRowData.SalesOrderItem) {
+        aFilters.push("SDDocumentItem eq '" + encodeURIComponent(oRowData.SalesOrderItem) + "'");
     }
 
     if (oRowData.plant) {
@@ -745,6 +780,50 @@ if (fRemaining < 0) {
             oLocalModel.setProperty("/scannedBatches", aRows);
             oLocalModel.refresh(true);
         },
+        _focusNextFromBatchInput: function (sCurrentPath) {
+    var oTable = this.byId("batchesTable");
+    var aItems = oTable.getItems();
+
+    if (!aItems || !aItems.length) {
+        return;
+    }
+
+    var iCurrentIndex = -1;
+
+    aItems.some(function (oItem, iIndex) {
+        var oCtx = oItem.getBindingContext("local");
+        if (oCtx && oCtx.getPath() === sCurrentPath) {
+            iCurrentIndex = iIndex;
+            return true;
+        }
+        return false;
+    });
+
+    if (iCurrentIndex === -1) {
+        return;
+    }
+
+    var iNextIndex = iCurrentIndex + 1;
+    if (iNextIndex >= aItems.length) {
+        return;
+    }
+
+    var oNextItem = aItems[iNextIndex];
+    var aCells = oNextItem.getCells();
+
+    if (!aCells || aCells.length < 5) {
+        return;
+    }
+
+    var oNextFromBatchInput = aCells[4];
+
+    if (oNextFromBatchInput && oNextFromBatchInput.focus) {
+        sap.ui.getCore().applyChanges();
+        jQuery.sap.delayedCall(100, this, function () {
+            oNextFromBatchInput.focus();
+        });
+    }
+},
 
        onNew: function () {
     this.getView().getModel("local").setData({
@@ -761,36 +840,46 @@ if (fRemaining < 0) {
 },
 
         onDeleteSelected: function () {
-            var oTable = this.byId("batchesTable");
-            var oLocalModel = this.getView().getModel("local");
-            var aData = oLocalModel.getProperty("/scannedBatches") || [];
-            var aSelectedItems = oTable.getSelectedItems();
+    var oTable = this.byId("batchesTable");
+    var oLocalModel = this.getView().getModel("local");
+    var aData = oLocalModel.getProperty("/scannedBatches") || [];
+    var aSelectedItems = oTable.getSelectedItems();
 
-            if (!aSelectedItems.length) {
-                MessageBox.warning("Please select at least one line item to delete.");
-                return;
+    if (!aSelectedItems.length) {
+        MessageBox.warning("Please select at least one line item to delete.");
+        return;
+    }
+
+    MessageBox.confirm("Are you sure you want to delete the selected line item(s)?", {
+        title: "Confirm Deletion",
+        actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+        emphasizedAction: MessageBox.Action.OK,
+        initialFocus: MessageBox.Action.CANCEL,
+        onClose: function (sAction) {
+            if (sAction === MessageBox.Action.OK) {
+                var aIndexesToDelete = aSelectedItems.map(function (oItem) {
+                    var sPath = oItem.getBindingContext("local").getPath();
+                    return parseInt(sPath.split("/").pop(), 10);
+                });
+
+                var aNewData = aData.filter(function (oItem, iIndex) {
+                    return aIndexesToDelete.indexOf(iIndex) === -1;
+                });
+
+                oLocalModel.setProperty("/scannedBatches", aNewData);
+                oLocalModel.refresh(true);
+
+                if (oTable.getBinding("items")) {
+                    oTable.getBinding("items").refresh();
+                }
+
+                oTable.removeSelections(true);
+
+                MessageToast.show("Selected line item(s) deleted successfully.");
             }
-
-            var aIndexesToDelete = aSelectedItems.map(function (oItem) {
-                var sPath = oItem.getBindingContext("local").getPath();
-                return parseInt(sPath.split("/").pop(), 10);
-            });
-
-            var aNewData = aData.filter(function (oItem, iIndex) {
-                return aIndexesToDelete.indexOf(iIndex) === -1;
-            });
-
-            oLocalModel.setProperty("/scannedBatches", aNewData);
-            oLocalModel.refresh(true);
-
-            if (oTable.getBinding("items")) {
-                oTable.getBinding("items").refresh();
-            }
-
-            oTable.removeSelections(true);
-
-            MessageToast.show("Selected line item(s) deleted successfully.");
-        },
+        }
+    });
+},
 
         onSubmit: function () {
             var oView = this.getView();
