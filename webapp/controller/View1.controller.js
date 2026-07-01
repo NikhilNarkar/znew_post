@@ -881,48 +881,49 @@ if (fRemaining < 0) {
             var oListBinding = oODataModel.bindList("/ZC_TRNS_POST_HDR");
             var oContext = oListBinding.create(oPayload);
 
-            oContext.created().then(function () {
-                oView.setBusy(false);
+           oContext.created().then(function () {
+    oView.setBusy(false);
 
-                var sMatDoc = oContext.getProperty("Materialdocument");
-                var sMessage = oContext.getProperty("Mess");
+    var sMatDoc = (oContext.getProperty("Materialdocument") || "").trim();
+    var sMessage = (oContext.getProperty("Mess") || "").trim();
 
-                var sSuccessMsg = sMatDoc
-                    ? "Material Document " + sMatDoc + " created successfully."
-                    : (sMessage || "Transfer posting submitted successfully.");
-
-                MessageBox.success(sSuccessMsg, {
-                    onClose: function () {
-                        oLocalModel.setData({
-    selection: {
-        reservation: "",
-        postingDate: new Date(),
-        salesOrder: "",
-        productionOrder: "",
-        lotNumber: "",
-        headerPlant: ""
-    },
-    scannedBatches: []
-});
-
-                        var oReservationInput = oView.byId("inputReservation");
-                        if (oReservationInput) {
-                            oReservationInput.focus();
-                        }
-                    }
+    if (sMatDoc) {
+        MessageBox.success("Material Document " + sMatDoc + " created successfully.", {
+            onClose: function () {
+                oLocalModel.setData({
+                    selection: {
+                        reservation: "",
+                        postingDate: new Date(),
+                        salesOrder: "",
+                        productionOrder: "",
+                        lotNumber: "",
+                        headerPlant: ""
+                    },
+                    scannedBatches: []
                 });
 
-            }).catch(function (oError) {
-                oView.setBusy(false);
-
-                var sErrorMsg = "Failed to submit transfer posting.";
-                if (oError && oError.message) {
-                    sErrorMsg = oError.message;
+                var oReservationInput = oView.byId("inputReservation");
+                if (oReservationInput) {
+                    oReservationInput.focus();
                 }
+            }
+        });
+    } else {
+        MessageBox.error(sMessage || "Material document was not created.");
+    }
 
-                MessageBox.error(sErrorMsg);
-                console.error("Submit error:", oError);
-            });
+}).catch(function (oError) {
+    oView.setBusy(false);
+
+    var sErrorMsg = "Failed to submit transfer posting.";
+
+    if (oError && oError.message) {
+        sErrorMsg = oError.message;
+    }
+
+    MessageBox.error(sErrorMsg);
+    console.error("Submit error:", oError);
+});
         }
 
     });
