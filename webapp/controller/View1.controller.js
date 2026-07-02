@@ -262,6 +262,16 @@ oLocalModel.refresh(true);
     label: new Label({ text: "UoM" }),
     template: new Text({ text: "{MaterialBaseUnit}" })
 }));
+
+oTable.addColumn(new UIColumn({
+    label: new Label({ text: "Sales Order" }),
+    template: new Text({ text: "{SDDocument}" })
+}));
+
+oTable.addColumn(new UIColumn({
+    label: new Label({ text: "Sales Order Item" }),
+    template: new Text({ text: "{SDDocumentItem}" })
+}));
                     oTable.addColumn(new UIColumn({
                         label: new Label({ text: "Batch" }),
                         template: new Text({ text: "{Batch}" })
