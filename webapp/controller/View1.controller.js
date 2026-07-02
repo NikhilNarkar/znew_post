@@ -826,7 +826,11 @@ if (fRemaining < 0) {
 },
 
        onNew: function () {
-    this.getView().getModel("local").setData({
+    var oView = this.getView();
+    var oLocalModel = oView.getModel("local");
+    var oTable = this.byId("batchesTable");
+
+    oLocalModel.setData({
         selection: {
             reservation: "",
             postingDate: new Date(),
@@ -837,6 +841,17 @@ if (fRemaining < 0) {
         },
         scannedBatches: []
     });
+
+    oLocalModel.refresh(true);
+
+    if (oTable) {
+        oTable.removeSelections(true);
+    }
+
+    var oReservationInput = this.byId("inputReservation");
+    if (oReservationInput) {
+        oReservationInput.focus();
+    }
 },
 
         onDeleteSelected: function () {
