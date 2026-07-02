@@ -264,6 +264,11 @@ oLocalModel.refresh(true);
 }));
 
 oTable.addColumn(new UIColumn({
+    label: new Label({ text: "Issue Location" }),
+    template: new Text({ text: "{StorageLocation}" })
+}));
+
+oTable.addColumn(new UIColumn({
     label: new Label({ text: "Sales Order" }),
     template: new Text({ text: "{SDDocument}" })
 }));
@@ -360,7 +365,7 @@ oTable.addColumn(new UIColumn({
             });
         },
 
-       _onBatchValueHelpOk: function () {
+      _onBatchValueHelpOk: function () {
     var oDialog = this._oBatchValueHelpDialog;
     var oTable = oDialog.getTable();
     var oSelectedContext = null;
@@ -390,9 +395,26 @@ oTable.addColumn(new UIColumn({
     var fRemainingBatchQty = this._getRemainingQtyForBatchSelection(oSelectedData, sPath);
 
     if (fRemainingBatchQty <= 0) {
-        MessageBox.warning("This batch is already fully used and cannot be selected again.");
-        return;
+    if (oTable.clearSelection) {
+        oTable.clearSelection();
+    } else if (oTable.removeSelections) {
+        oTable.removeSelections(true);
     }
+
+    if (oTable.setSelectedIndex) {
+        oTable.setSelectedIndex(-1);
+    }
+
+    MessageBox.warning("This batch is already fully used and cannot be selected again.", {
+        onClose: function () {
+            if (oDialog) {
+                oDialog.close();
+            }
+        }
+    });
+
+    return;
+}
 
     var fRemainingBeforeAllocation = this._getRemainingQtyForGroup(oCurrentRow);
     var fIssueQtyToSet = Math.min(fRemainingBatchQty, fRemainingBeforeAllocation);
@@ -405,16 +427,15 @@ oTable.addColumn(new UIColumn({
     oLocalModel.setProperty(sPath + "/uom", oSelectedData.MaterialBaseUnit || "");
     oLocalModel.setProperty(sPath + "/issueLocation", oSelectedData.StorageLocation || "");
 
- this._setToBatchForRow(sPath);
+    this._setToBatchForRow(sPath);
+    this._sPendingNextFocusPath = sPath;
 
-   this._sPendingNextFocusPath = sPath;
+    oDialog.close();
 
-oDialog.close();
+    this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
+    this._insertFollowupRowIfNeeded(sPath);
 
-this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
-this._insertFollowupRowIfNeeded(sPath);
-
-MessageToast.show("Batch selected successfully");
+    MessageToast.show("Batch selected successfully");
 },
 
         _onBatchValueHelpCancel: function () {
