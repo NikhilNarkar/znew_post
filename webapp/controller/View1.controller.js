@@ -441,7 +441,7 @@ sap.ui.define([
             this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
             this._insertFollowupRowIfNeeded(sPath);
 
-            MessageToast.show("Batch selected successfully");
+            MessageToast.show("Batch / Quantity selected successfully");
         },
 
         _onBatchValueHelpCancel: function () {
