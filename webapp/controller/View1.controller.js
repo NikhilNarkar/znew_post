@@ -477,23 +477,26 @@ sap.ui.define([
             await this._fetchBatchDetailsForRow(sPath, oRowData, sBatch);
         },
 
-        _getUsedQtyForBatch: function (sBatch, sCurrentPath) {
-            var aRows = this.getView().getModel("local").getProperty("/scannedBatches") || [];
-            var fUsedQty = 0;
+       _getUsedQtyForBatch: function (sBatch, sCurrentPath) {
+    var aRows = this.getView().getModel("local").getProperty("/scannedBatches") || [];
+    var fUsedQty = 0;
 
-            aRows.forEach(function (oRow, iIndex) {
-                var sRowPath = "/scannedBatches/" + iIndex;
+    aRows.forEach(function (oRow, iIndex) {
+        var sRowPath = "/scannedBatches/" + iIndex;
+        var sRowBatch = (oRow.batch || "").trim();
 
-                if (
-                    oRow.batch === sBatch &&
-                    sRowPath !== sCurrentPath
-                ) {
-                    fUsedQty += parseFloat(oRow.issuedQty) || 0;
-                }
-            });
+        if (
+            sRowPath !== sCurrentPath &&
+            sRowBatch !== "" &&
+            sBatch &&
+            sRowBatch === sBatch
+        ) {
+            fUsedQty += parseFloat(oRow.issuedQty) || 0;
+        }
+    });
 
-            return fUsedQty;
-        },
+    return fUsedQty;
+},
 
         // get remaining quantity for a batch selection considering already used quantities in other rows
         _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
