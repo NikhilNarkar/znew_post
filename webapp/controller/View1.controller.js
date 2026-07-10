@@ -12,6 +12,8 @@ sap.ui.define([
     "sap/m/Column",
     "sap/m/Text",
     "sap/m/Label",
+    "sap/ui/export/Spreadsheet",
+    "sap/ui/export/library",
     "sap/m/ColumnListItem"
 ], function (
     Controller,
@@ -27,6 +29,7 @@ sap.ui.define([
     MColumn,
     Text,
     Label,
+    Spreadsheet, exportLibrary,
     ColumnListItem
 ) {
     "use strict";
@@ -51,6 +54,81 @@ sap.ui.define([
             this._oBatchValueHelpDialog = null;
         },
 
+        onExportExcel: function () {
+            var oView = this.getView();
+            var oLocalModel = oView.getModel("local");
+            var aScannedBatches = oLocalModel.getProperty("/scannedBatches") || [];
+
+            if (!aScannedBatches.length) {
+                MessageBox.warning("No data available to export.");
+                return;
+            }
+
+            var aExportData = aScannedBatches.map(function (oItem) {
+                return {
+                    material: oItem.material || "",
+                    reservation_item: oItem.reservation_item || "",
+                    description: oItem.description || "",
+                    requiredQty: parseFloat(String(oItem.requiredQty || 0).replace(/,/g, "")) || 0,
+                    reqUom: oItem.reqUom || "",
+                    batch: oItem.batch || "",
+                    toBatch: oItem.toBatch || "",
+                    issuedQty: parseFloat(String(oItem.issuedQty || 0).replace(/,/g, "")) || 0,
+                    uom: oItem.uom || "",
+                    issueLocation: oItem.issueLocation || "",
+                    receivingLocation: oItem.receivingLocation || "",
+                    salesOrder: (oItem.salesOrder || "").toString(),
+                    salesOrderItem: (oItem.salesOrderItem || "").toString(),
+                    productionOrder: (oItem.productionOrder || "").toString()
+                };
+            });
+
+            var oSettings = {
+                workbook: {
+                    columns: this._createColumnConfig(),
+                    context: {
+                        sheetName: "Reservation Items"
+                    }
+                },
+                dataSource: aExportData,
+                fileName: "Reservation_Items.xlsx"
+            };
+
+            var oSpreadsheet = new Spreadsheet(oSettings);
+
+            oSpreadsheet.build()
+                .then(function () {
+                    MessageToast.show("Excel export completed successfully.");
+                })
+                .catch(function (oError) {
+                    MessageBox.error("Error while exporting to Excel.");
+                    console.error("Excel export error:", oError);
+                })
+                .finally(function () {
+                    oSpreadsheet.destroy();
+                });
+        },
+
+        _createColumnConfig: function () {
+            var EdmType = exportLibrary.EdmType;
+
+            return [
+                { label: "Material", property: "material", type: EdmType.String },
+                { label: "Reservation Item", property: "reservation_item", type: EdmType.String },
+                { label: "Description", property: "description", type: EdmType.String },
+                { label: "Required Qty", property: "requiredQty", type: EdmType.Number, scale: 3 },
+                { label: "Req UoM", property: "reqUom", type: EdmType.String },
+                { label: "From Batch", property: "batch", type: EdmType.String },
+                { label: "To Batch", property: "toBatch", type: EdmType.String },
+                { label: "Issued Qty", property: "issuedQty", type: EdmType.Number, scale: 3 },
+                { label: "Issue UoM", property: "uom", type: EdmType.String },
+                { label: "Issue Location", property: "issueLocation", type: EdmType.String },
+                { label: "Receiving Location", property: "receivingLocation", type: EdmType.String },
+                { label: "Sales Order", property: "salesOrder", type: EdmType.String },
+                { label: "Sales Order Item", property: "salesOrderItem", type: EdmType.String },
+                { label: "Production Order", property: "productionOrder", type: EdmType.String }
+            ];
+        },
         onReservationChange: async function (oEvent) {
             var sReservation = oEvent.getSource().getValue().trim();
             var oLocalModel = this.getView().getModel("local");
@@ -161,9 +239,14 @@ sap.ui.define([
                         salesOrder: oItem.sales_order || "",
                         salesOrderItem: oItem.so_item || "",
                         productionOrder: oItem.prod_order || "",
-                        productType: oItem.ProductType || ""
+                        productType: oItem.ProductType || "",
+
+                        stockAvailable: true,
+                        stockMessage: ""
                     };
                 });
+
+                var aNoStockItems = await this._checkStockAvailabilityForItems(aMapped);
 
                 oLocalModel.setProperty("/scannedBatches", aMapped);
                 oLocalModel.refresh(true);
@@ -174,12 +257,120 @@ sap.ui.define([
                     MessageToast.show("Reservation items fetched successfully");
                 }
 
+                if (aNoStockItems.length > 0) {
+                    var sMessage = aNoStockItems.map(function (oItem) {
+                        return "Material: " + oItem.material +
+                            " | Reservation Item: " + oItem.reservation_item;
+                    }).join("\n");
+
+                    MessageBox.warning(
+                        "Stock not available for the following items:\n\n" +
+                        sMessage +
+                        "\n\nPlease delete these rows before submission."
+                    );
+                }
+
             } catch (oError) {
                 oLocalModel.setProperty("/scannedBatches", []);
                 MessageBox.error("Failed to fetch reservation items");
                 console.error("Reservation fetch error:", oError);
             }
         },
+
+       _checkStockAvailabilityForItems: async function (aItems) {
+    var mUniqueChecks = {};
+    var aNoStockItems = [];
+
+    aItems.forEach(function (oItem) {
+        var sKey = [
+            oItem.material || "",
+            oItem.plant || "",
+            oItem.salesOrder || "",
+            oItem.salesOrderItem || "",
+            oItem.issueLocation || ""
+        ].join("|");
+
+        if (!mUniqueChecks[sKey]) {
+            mUniqueChecks[sKey] = {
+                key: sKey,
+                items: [],
+                material: oItem.material || "",
+                plant: oItem.plant || "",
+                salesOrder: oItem.salesOrder || "",
+                salesOrderItem: oItem.salesOrderItem || "",
+                issueLocation: oItem.issueLocation || ""
+            };
+        }
+
+        mUniqueChecks[sKey].items.push(oItem);
+    });
+
+    var aPromises = Object.keys(mUniqueChecks).map(async function (sKey) {
+        var oCheck = mUniqueChecks[sKey];
+        var aFilters = [];
+
+        if (oCheck.material) {
+            aFilters.push("Material eq '" + encodeURIComponent(oCheck.material) + "'");
+        }
+        if (oCheck.plant) {
+            aFilters.push("Plant eq '" + encodeURIComponent(oCheck.plant) + "'");
+        }
+        if (oCheck.salesOrder) {
+            aFilters.push("SDDocument eq '" + encodeURIComponent(oCheck.salesOrder) + "'");
+        }
+        if (oCheck.salesOrderItem) {
+            aFilters.push("SDDocumentItem eq '" + encodeURIComponent(oCheck.salesOrderItem) + "'");
+        }
+        if (oCheck.issueLocation) {
+            aFilters.push("StorageLocation eq '" + encodeURIComponent(oCheck.issueLocation) + "'");
+        }
+
+        var sServiceUrl =
+            "/sap/opu/odata4/sap/zsb_trnansfer_posting/srvd_a2x/sap/zsd_trnasfer_posting/0001/ZI_GET_BATCHES_311E";
+
+        if (aFilters.length) {
+            sServiceUrl += "?$filter=" + aFilters.join(" and ");
+        }
+
+        try {
+            var oResponse = await fetch(sServiceUrl, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json"
+                }
+            });
+
+            if (!oResponse.ok) {
+                throw new Error("HTTP status " + oResponse.status);
+            }
+
+            var oData = await oResponse.json();
+            var aResults = oData.value || [];
+            var bStockAvailable = aResults.length > 0;
+
+            oCheck.items.forEach(function (oItem) {
+                oItem.stockAvailable = bStockAvailable;
+                oItem.stockMessage = bStockAvailable ? "" : "Stock not available";
+
+                if (!bStockAvailable) {
+                    aNoStockItems.push(oItem);
+                }
+            });
+        } catch (oError) {
+            oCheck.items.forEach(function (oItem) {
+                oItem.stockAvailable = false;
+                oItem.stockMessage = "Stock check failed";
+                aNoStockItems.push(oItem);
+            });
+
+            console.error("Stock availability check failed for material:", oCheck.material, oError);
+        }
+    });
+
+    await Promise.all(aPromises);
+
+    return aNoStockItems;
+},
 
         _setToBatchForRow: function (sPath) {
             var oLocalModel = this.getView().getModel("local");
@@ -205,6 +396,17 @@ sap.ui.define([
 
             if (!this._oCurrentBatchRowContext) {
                 MessageBox.error("Unable to identify selected row.");
+                return;
+            }
+
+            var oRowData = this._oCurrentBatchRowContext.getObject();
+
+            if (oRowData && oRowData.stockAvailable === false) {
+                MessageBox.warning(
+                    "Stock not available for material " +
+                    (oRowData.material || "") +
+                    ". Please delete this row."
+                );
                 return;
             }
 
@@ -369,6 +571,8 @@ sap.ui.define([
             });
         },
 
+
+
         _onBatchValueHelpOk: function () {
             var oDialog = this._oBatchValueHelpDialog;
             var oTable = oDialog.getTable();
@@ -477,26 +681,26 @@ sap.ui.define([
             await this._fetchBatchDetailsForRow(sPath, oRowData, sBatch);
         },
 
-       _getUsedQtyForBatch: function (sBatch, sCurrentPath) {
-    var aRows = this.getView().getModel("local").getProperty("/scannedBatches") || [];
-    var fUsedQty = 0;
+        _getUsedQtyForBatch: function (sBatch, sCurrentPath) {
+            var aRows = this.getView().getModel("local").getProperty("/scannedBatches") || [];
+            var fUsedQty = 0;
 
-    aRows.forEach(function (oRow, iIndex) {
-        var sRowPath = "/scannedBatches/" + iIndex;
-        var sRowBatch = (oRow.batch || "").trim();
+            aRows.forEach(function (oRow, iIndex) {
+                var sRowPath = "/scannedBatches/" + iIndex;
+                var sRowBatch = (oRow.batch || "").trim();
 
-        if (
-            sRowPath !== sCurrentPath &&
-            sRowBatch !== "" &&
-            sBatch &&
-            sRowBatch === sBatch
-        ) {
-            fUsedQty += parseFloat(oRow.issuedQty) || 0;
-        }
-    });
+                if (
+                    sRowPath !== sCurrentPath &&
+                    sRowBatch !== "" &&
+                    sBatch &&
+                    sRowBatch === sBatch
+                ) {
+                    fUsedQty += parseFloat(oRow.issuedQty) || 0;
+                }
+            });
 
-    return fUsedQty;
-},
+            return fUsedQty;
+        },
 
         // get remaining quantity for a batch selection considering already used quantities in other rows
         _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
@@ -643,7 +847,7 @@ sap.ui.define([
             oInput.setValueState("None");
             oInput.setValueStateText("");
 
-            oLocalModel.setProperty(sPath + "/issuedQty", fEnteredQty);
+            oLocalModel.setProperty(sPath + "/issuedQty", this._roundTo3Decimals(fEnteredQty));
             this._updateGroupRemainingQtyDisplay(oCurrentRow.groupId);
 
             var fRemaining = this._getRemainingQtyForGroup(oCurrentRow);
@@ -710,7 +914,9 @@ sap.ui.define([
                 salesOrder: oSourceRow.salesOrder || "",
                 salesOrderItem: oSourceRow.salesOrderItem || "",
                 productionOrder: oSourceRow.productionOrder || "",
-                productType: oSourceRow.productType || ""
+                productType: oSourceRow.productType || "",
+                stockAvailable: oSourceRow.stockAvailable,
+                stockMessage: oSourceRow.stockMessage
             };
         },
 
