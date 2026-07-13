@@ -1240,28 +1240,60 @@ sap.ui.define([
                 var sMatDoc = (oContext.getProperty("Materialdocument") || "").trim();
                 var sMessage = (oContext.getProperty("Mess") || "").trim();
 
-                if (sMatDoc) {
-                    MessageBox.success("Material Document " + sMatDoc + " created successfully.", {
-                        onClose: function () {
-                            oLocalModel.setData({
-                                selection: {
-                                    reservation: "",
-                                    postingDate: new Date(),
-                                    salesOrder: "",
-                                    productionOrder: "",
-                                    lotNumber: "",
-                                    headerPlant: ""
-                                },
-                                scannedBatches: []
-                            });
+               if (sMatDoc) {
+    MessageBox.success(
+        "Material Document " + sMatDoc + " created successfully.",
+        {
+            actions: ["Open Material Issue Slip", MessageBox.Action.OK],
+            emphasizedAction: "Open Material Issue Slip",
+            onClose: function (sAction) {
+                var sReservationNo = String(oSelection.reservation || "").padStart(10, "0");
+                var sPostingDate = sFormattedDate;
 
-                            var oReservationInput = oView.byId("inputReservation");
-                            if (oReservationInput) {
-                                oReservationInput.focus();
+                oLocalModel.setData({
+                    selection: {
+                        reservation: "",
+                        postingDate: new Date(),
+                        salesOrder: "",
+                        productionOrder: "",
+                        lotNumber: "",
+                        headerPlant: ""
+                    },
+                    scannedBatches: []
+                });
+
+                var oReservationInput = oView.byId("inputReservation");
+                if (oReservationInput) {
+                    oReservationInput.focus();
+                }
+
+                if (sAction === "Open Material Issue Slip") {
+                    var oCrossAppNav = sap.ushell && sap.ushell.Container &&
+                        sap.ushell.Container.getService("CrossApplicationNavigation");
+
+                    if (oCrossAppNav) {
+                        oCrossAppNav.toExternal({
+                            target: {
+                                semanticObject: "zpp_mat_issue",
+                                action: "Display"
+                            },
+                            params: {
+                                ReservationNo: sReservationNo,
+                                MaterialDocument: sMatDoc,
+                                PostingDate: sPostingDate,
+                                AutoPreview: "X"
                             }
-                        }
-                    });
-                } else {
+                        });
+                    } else {
+                        MessageBox.error("Cross application navigation service not available.");
+                    }
+                }
+            }
+        }
+    );
+}
+                
+                else {
                     MessageBox.error(sMessage || "Material document was not created.");
                 }
 
