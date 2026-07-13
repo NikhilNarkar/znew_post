@@ -1240,16 +1240,13 @@ sap.ui.define([
                 var sMatDoc = (oContext.getProperty("Materialdocument") || "").trim();
                 var sMessage = (oContext.getProperty("Mess") || "").trim();
 
-               if (sMatDoc) {
+              if (sMatDoc) {
     MessageBox.success(
-        "Material Document " + sMatDoc + " created successfully.",
+        "Material Document " + sMatDoc + " created successfully.\n\nPress OK to open Material Issue Slip.",
         {
-            actions: ["Open Material Issue Slip", MessageBox.Action.OK],
-            emphasizedAction: "Open Material Issue Slip",
+            actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+            emphasizedAction: MessageBox.Action.OK,
             onClose: function (sAction) {
-                var sReservationNo = String(oSelection.reservation || "").padStart(10, "0");
-                var sPostingDate = sFormattedDate;
-
                 oLocalModel.setData({
                     selection: {
                         reservation: "",
@@ -1267,7 +1264,7 @@ sap.ui.define([
                     oReservationInput.focus();
                 }
 
-                if (sAction === "Open Material Issue Slip") {
+                if (sAction === MessageBox.Action.OK) {
                     var oCrossAppNav = sap.ushell && sap.ushell.Container &&
                         sap.ushell.Container.getService("CrossApplicationNavigation");
 
@@ -1278,10 +1275,7 @@ sap.ui.define([
                                 action: "Display"
                             },
                             params: {
-                                ReservationNo: sReservationNo,
-                                MaterialDocument: sMatDoc,
-                                PostingDate: sPostingDate,
-                                AutoPreview: "X"
+                                MaterialDocument: sMatDoc
                             }
                         });
                     } else {
@@ -1291,11 +1285,9 @@ sap.ui.define([
             }
         }
     );
+} else {
+    MessageBox.error(sMessage || "Material document was not created.");
 }
-                
-                else {
-                    MessageBox.error(sMessage || "Material document was not created.");
-                }
 
             }).catch(function (oError) {
                 oView.setBusy(false);
