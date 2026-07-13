@@ -384,7 +384,7 @@ sap.ui.define([
             var sProductType = (oRowData.productType || "").toUpperCase();
             var sFromBatch = oRowData.batch || "";
 
-            if (sProductType === "ZFGP") {
+            if (sProductType === "ZFGP" || sProductType === "ZFGF") {
                 oLocalModel.setProperty(sPath + "/toBatch", sHeaderLotNumber);
             } else {
                 oLocalModel.setProperty(sPath + "/toBatch", sFromBatch);
