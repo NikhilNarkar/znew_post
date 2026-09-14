@@ -44,7 +44,8 @@ sap.ui.define([
                     salesOrder: "",
                     productionOrder: "",
                     lotNumber: "",
-                    headerPlant: ""
+                    headerPlant: "",
+                    ContractorName: "",
                 },
                 scannedBatches: []
             });
@@ -138,6 +139,7 @@ sap.ui.define([
                 oLocalModel.setProperty("/selection/productionOrder", "");
                 oLocalModel.setProperty("/selection/lotNumber", "");
                 oLocalModel.setProperty("/selection/headerPlant", "");
+                oLocalModel.setProperty("/selection/ContractorName", "");
                 oLocalModel.setProperty("/scannedBatches", []);
                 return;
             }
@@ -172,6 +174,7 @@ sap.ui.define([
                     oLocalModel.setProperty("/selection/productionOrder", "");
                     oLocalModel.setProperty("/selection/lotNumber", "");
                     oLocalModel.setProperty("/selection/headerPlant", "");
+                    oLocalModel.setProperty("/selection/ContractorName", "");
                     return;
                 }
 
@@ -181,6 +184,7 @@ sap.ui.define([
                 oLocalModel.setProperty("/selection/productionOrder", oHeader.prod_order || "");
                 oLocalModel.setProperty("/selection/lotNumber", oHeader.YY1_LotNumber2_ORD || "");
                 oLocalModel.setProperty("/selection/headerPlant", oHeader.plant || "");
+                oLocalModel.setProperty("/selection/ContractorName", oHeader.master_name || "");
                 oLocalModel.refresh(true);
 
             } catch (oError) {
@@ -188,94 +192,179 @@ sap.ui.define([
                 oLocalModel.setProperty("/selection/productionOrder", "");
                 oLocalModel.setProperty("/selection/lotNumber", "");
                 oLocalModel.setProperty("/selection/headerPlant", "");
+                oLocalModel.setProperty("/selection/ContractorName", "");
                 console.error("Reservation header fetch error:", oError);
                 MessageBox.error("Failed to fetch reservation header details");
             }
         },
 
-        _fetchReservationItems: async function (sReservation) {
-            var oLocalModel = this.getView().getModel("local");
-            var sServiceUrl =
-                "/sap/opu/odata4/sap/zsb_trnansfer_posting/srvd_a2x/sap/zsd_trnasfer_posting/0001/ZI_GET_RES_ITM" +
-                "?$filter=Reservation eq '" + encodeURIComponent(sReservation) + "'";
+       _checkBatchAndAutoAssign: async function (aItems) {
+    var self = this;
 
-            try {
-                var oResponse = await fetch(sServiceUrl, {
-                    method: "GET",
-                    headers: {
-                        "Accept": "application/json"
-                    }
-                });
+    var aPromises = aItems.map(async function (oItem, iIndex) {
+        var aFilters = [];
 
-                if (!oResponse.ok) {
-                    throw new Error("HTTP status " + oResponse.status);
-                }
+        if (oItem.material) {
+            aFilters.push("Material eq '" + encodeURIComponent(oItem.material) + "'");
+        }
+        if (oItem.plant) {
+            aFilters.push("Plant eq '" + encodeURIComponent(oItem.plant) + "'");
+        }
+        if (oItem.salesOrder) {
+            aFilters.push("SDDocument eq '" + encodeURIComponent(oItem.salesOrder) + "'");
+        }
+        if (oItem.salesOrderItem) {
+            aFilters.push("SDDocumentItem eq '" + encodeURIComponent(oItem.salesOrderItem) + "'");
+        }
+        if (oItem.issueLocation) {
+            aFilters.push("StorageLocation eq '" + encodeURIComponent(oItem.issueLocation) + "'");
+        }
 
-                var oData = await oResponse.json();
-                var aResults = oData.value || [];
+        var sServiceUrl =
+            "/sap/opu/odata4/sap/zsb_trnansfer_posting/srvd_a2x/sap/zsd_trnasfer_posting/0001/ZI_GET_BATCHES_311E";
 
-                var aMapped = aResults.map(function (oItem, iIndex) {
-                    var fReqQty = parseFloat(oItem.ResvnItmRequiredQtyInBaseUnit) || 0;
+        if (aFilters.length) {
+            sServiceUrl += "?$filter=" + aFilters.join(" and ");
+        }
 
-                    return {
-                        groupId: "GRP_" + iIndex + "_" + Date.now(),
-                        isAutoSplitRow: false,
+        try {
+            var oResponse = await fetch(sServiceUrl, {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
 
-                        reservation_item: oItem.ReservationItem || "",
-                        material: oItem.Product || "",
-                        description: oItem.ProductDescription || "",
-                        requiredQty: fReqQty,
-                        requiredQtyTotal: fReqQty,
-                        reqUom: oItem.BaseUnit || "",
-
-                        batch: "",
-                        toBatch: "",
-                        issuedQty: "",
-                        maxIssuedQty: "",
-                        uom: "",
-                        plant: oItem.Plant || "",
-                        issueLocation: oItem.Issueloc || "",
-                        receivingLocation: oItem.StorageLocation || "",
-                        salesOrder: oItem.sales_order || "",
-                        salesOrderItem: oItem.so_item || "",
-                        productionOrder: oItem.prod_order || "",
-                        productType: oItem.ProductType || "",
-
-                        stockAvailable: true,
-                        stockMessage: ""
-                    };
-                });
-
-                var aNoStockItems = await this._checkStockAvailabilityForItems(aMapped);
-
-                oLocalModel.setProperty("/scannedBatches", aMapped);
-                oLocalModel.refresh(true);
-
-                if (aMapped.length === 0) {
-                    MessageToast.show("No items found for this reservation");
-                } else {
-                    MessageToast.show("Reservation items fetched successfully");
-                }
-
-                if (aNoStockItems.length > 0) {
-                    var sMessage = aNoStockItems.map(function (oItem) {
-                        return "Material: " + oItem.material +
-                            " | Reservation Item: " + oItem.reservation_item;
-                    }).join("\n");
-
-                    MessageBox.warning(
-                        "Stock not available for the following items:\n\n" +
-                        sMessage +
-                        "\n\nPlease delete these rows before submission."
-                    );
-                }
-
-            } catch (oError) {
-                oLocalModel.setProperty("/scannedBatches", []);
-                MessageBox.error("Failed to fetch reservation items");
-                console.error("Reservation fetch error:", oError);
+            if (!oResponse.ok) {
+                return;
             }
-        },
+
+            var oData = await oResponse.json();
+            var aResults = oData.value || [];
+
+            // Filter out entries with valid/non-empty Batch values
+            var aValidBatches = aResults.filter(function (oB) {
+                return oB.Batch && oB.Batch.trim() !== "";
+            });
+
+            if (aValidBatches.length === 0) {
+                // NO BATCH MAINTAINED
+                oItem.batch = "";
+                oItem.toBatch = "";
+                oItem.isBatchEnabled = false; // Disable batch input fields
+
+                // CHECK STOCK AVAILABILITY FIRST BEFORE AUTO-COPYING QUANTITY
+                if (oItem.stockAvailable) {
+                    var fReqQty = parseFloat(oItem.requiredQty) || 0;
+                    oItem.issuedQty = fReqQty;
+                    oItem.maxIssuedQty = fReqQty;
+                    oItem.uom = oItem.reqUom || "";
+                } else {
+                    // IF NO STOCK, KEEP QUANTITY EMPTY
+                    oItem.issuedQty = "";
+                    oItem.maxIssuedQty = 0;
+                    oItem.uom = "";
+                }
+            } else {
+                // BATCH MAINTAINED: Keep batch fields enabled
+                oItem.isBatchEnabled = true;
+            }
+        } catch (oError) {
+            console.error("Batch auto-check failed for item " + oItem.reservation_item, oError);
+            oItem.isBatchEnabled = true;
+        }
+    });
+
+    await Promise.all(aPromises);
+},
+
+       _fetchReservationItems: async function (sReservation) {
+    var oLocalModel = this.getView().getModel("local");
+    var sServiceUrl =
+        "/sap/opu/odata4/sap/zsb_trnansfer_posting/srvd_a2x/sap/zsd_trnasfer_posting/0001/ZI_GET_RES_ITM" +
+        "?$filter=Reservation eq '" + encodeURIComponent(sReservation) + "'";
+
+    try {
+        var oResponse = await fetch(sServiceUrl, {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        });
+
+        if (!oResponse.ok) {
+            throw new Error("HTTP status " + oResponse.status);
+        }
+
+        var oData = await oResponse.json();
+        var aResults = oData.value || [];
+
+        var aMapped = aResults.map(function (oItem, iIndex) {
+            var fReqQty = parseFloat(oItem.ResvnItmRequiredQtyInBaseUnit) || 0;
+
+            return {
+                groupId: "GRP_" + iIndex + "_" + Date.now(),
+                isAutoSplitRow: false,
+                isBatchEnabled: true, // Default to true
+
+                reservation_item: oItem.ReservationItem || "",
+                material: oItem.Product || "",
+                description: oItem.ProductDescription || "",
+                requiredQty: fReqQty,
+                requiredQtyTotal: fReqQty,
+                reqUom: oItem.BaseUnit || "",
+
+                batch: "",
+                toBatch: "",
+                issuedQty: "",
+                maxIssuedQty: "",
+                uom: "",
+                plant: oItem.Plant || "",
+                issueLocation: oItem.Issueloc || "",
+                receivingLocation: oItem.StorageLocation || "",
+                salesOrder: oItem.sales_order || "",
+                salesOrderItem: oItem.so_item || "",
+                productionOrder: oItem.prod_order || "",
+                productType: oItem.ProductType || "",
+
+                stockAvailable: true,
+                stockMessage: ""
+            };
+        });
+
+        // 1. Check Stock Availability
+        var aNoStockItems = await this._checkStockAvailabilityForItems(aMapped);
+
+        // 2. AUTO-CHECK BATCHES: Automatically copy Qty & disable batch fields if no batch is maintained
+        await this._checkBatchAndAutoAssign(aMapped);
+
+        // 3. Update Model
+        oLocalModel.setProperty("/scannedBatches", aMapped);
+        oLocalModel.refresh(true);
+
+        if (aMapped.length === 0) {
+            MessageToast.show("No items found for this reservation");
+        } else {
+            MessageToast.show("Reservation items fetched successfully");
+        }
+
+        if (aNoStockItems.length > 0) {
+            var sMessage = aNoStockItems.map(function (oItem) {
+                return "Material: " + oItem.material +
+                    " | Reservation Item: " + oItem.reservation_item;
+            }).join("\n");
+
+            MessageBox.warning(
+                "Stock not available for the following items:\n\n" +
+                sMessage +
+                "\n\nPlease delete these rows before submission."
+            );
+        }
+
+    } catch (oError) {
+        oLocalModel.setProperty("/scannedBatches", []);
+        MessageBox.error("Failed to fetch reservation items");
+        console.error("Reservation fetch error:", oError);
+    }
+},
 
        _checkStockAvailabilityForItems: async function (aItems) {
     var mUniqueChecks = {};
@@ -392,184 +481,255 @@ sap.ui.define([
         },
 
         onFromBatchValueHelp: function (oEvent) {
-            this._oCurrentBatchRowContext = oEvent.getSource().getBindingContext("local");
+    this._oCurrentBatchRowContext = oEvent.getSource().getBindingContext("local");
 
-            if (!this._oCurrentBatchRowContext) {
-                MessageBox.error("Unable to identify selected row.");
-                return;
-            }
+    if (!this._oCurrentBatchRowContext) {
+        MessageBox.error("Unable to identify selected row.");
+        return;
+    }
 
-            var oRowData = this._oCurrentBatchRowContext.getObject();
+    var oRowData = this._oCurrentBatchRowContext.getObject();
 
-            if (oRowData && oRowData.stockAvailable === false) {
-                MessageBox.warning(
-                    "Stock not available for material " +
-                    (oRowData.material || "") +
-                    ". Please delete this row."
-                );
-                return;
-            }
+    if (oRowData && oRowData.stockAvailable === false) {
+        MessageBox.warning(
+            "Stock not available for material " +
+            (oRowData.material || "") +
+            ". Please delete this row."
+        );
+        return;
+    }
 
-            this._openBatchValueHelp();
-        },
+    // Call the value help opener with non-batch check logic
+    this._openBatchValueHelp();
+},
 
         _openBatchValueHelp: function () {
-            var oRowData = this._oCurrentBatchRowContext.getObject();
-            var oView = this.getView();
+    var oRowData = this._oCurrentBatchRowContext.getObject();
+    var oView = this.getView();
+    var self = this;
 
-            if (!this._oBatchValueHelpDialog) {
-                this._oBatchValueHelpDialog = new ValueHelpDialog({
-                    title: "Select Batch",
-                    supportMultiselect: false,
-                    supportRanges: false,
-                    key: "Batch",
-                    descriptionKey: "ProductDescription",
-                    ok: this._onBatchValueHelpOk.bind(this),
-                    cancel: this._onBatchValueHelpCancel.bind(this),
-                    afterClose: function () {
-                        if (this._sPendingNextFocusPath) {
-                            var sPath = this._sPendingNextFocusPath;
-                            this._sPendingNextFocusPath = null;
+    if (!this._oBatchValueHelpDialog) {
+        this._oBatchValueHelpDialog = new ValueHelpDialog({
+            title: "Select Batch",
+            supportMultiselect: false,
+            supportRanges: false,
+            key: "Batch",
+            descriptionKey: "ProductDescription",
+            ok: this._onBatchValueHelpOk.bind(this),
+            cancel: this._onBatchValueHelpCancel.bind(this),
+            afterClose: function () {
+                if (this._sPendingNextFocusPath) {
+                    var sPath = this._sPendingNextFocusPath;
+                    this._sPendingNextFocusPath = null;
 
-                            jQuery.sap.delayedCall(200, this, function () {
-                                this._focusNextFromBatchInput(sPath);
-                            });
+                    jQuery.sap.delayedCall(200, this, function () {
+                        this._focusNextFromBatchInput(sPath);
+                    });
+                }
+            }.bind(this)
+        });
+
+        oView.addDependent(this._oBatchValueHelpDialog);
+    }
+
+    var oDialog = this._oBatchValueHelpDialog;
+
+    oDialog.getTableAsync().then(function (oTable) {
+        oTable.setModel(oView.getModel());
+
+        if (oTable.bindRows) {
+            oTable.destroyColumns();
+
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Material" }),
+                template: new Text({ text: "{Material}" })
+            }));
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Description" }),
+                template: new Text({ text: "{ProductDescription}" })
+            }));
+
+            // --- DYNAMIC QUANTITY COLUMN FOR DESKTOP UI TABLE ---
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Quantity" }),
+                template: new Text({
+                    text: {
+                        parts: [{ path: "QTY" }, { path: "Batch" }],
+                        formatter: function (fQty, sBatch) {
+                            if (!sBatch) return "0";
+                            var sCurrentPath = self._oCurrentBatchRowContext ? self._oCurrentBatchRowContext.getPath() : "";
+                            var oBatchData = { QTY: fQty, Batch: sBatch };
+                            var fRemaining = self._getRemainingQtyForBatchSelection(oBatchData, sCurrentPath);
+                            
+                            return self._roundTo3Decimals(fRemaining).toFixed(3);
                         }
-                    }.bind(this)
-                });
+                    }
+                })
+            }));
 
-                oView.addDependent(this._oBatchValueHelpDialog);
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "UoM" }),
+                template: new Text({ text: "{MaterialBaseUnit}" })
+            }));
+
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Issue Location" }),
+                template: new Text({ text: "{StorageLocation}" })
+            }));
+
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Sales Order" }),
+                template: new Text({ text: "{SDDocument}" })
+            }));
+
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Sales Order Item" }),
+                template: new Text({ text: "{SDDocumentItem}" })
+            }));
+            oTable.addColumn(new UIColumn({
+                label: new Label({ text: "Batch" }),
+                template: new Text({ text: "{Batch}" })
+            }));
+
+            oTable.bindRows({
+                path: "/ZI_GET_BATCHES_311E"
+            });
+
+            var aFilters = [];
+            if (oRowData.material) {
+                aFilters.push(new Filter("Material", FilterOperator.EQ, oRowData.material));
+            }
+            if (oRowData.plant) {
+                aFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
+            }
+            if (oRowData.salesOrder) {
+                aFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
+            }
+            if (oRowData.salesOrderItem) {
+                aFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
+            }
+            if (oRowData.issueLocation) {
+                aFilters.push(new Filter("StorageLocation", FilterOperator.EQ, oRowData.issueLocation));
             }
 
-            var oDialog = this._oBatchValueHelpDialog;
+            var oRowsBinding = oTable.getBinding("rows");
+            if (oRowsBinding) {
+                oRowsBinding.filter(aFilters);
 
-            oDialog.getTableAsync().then(function (oTable) {
-                oTable.setModel(oView.getModel());
-
-                if (oTable.bindRows) {
-                    oTable.destroyColumns();
-
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Material" }),
-                        template: new Text({ text: "{Material}" })
-                    }));
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Description" }),
-                        template: new Text({ text: "{ProductDescription}" })
-                    }));
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Quantity" }),
-                        template: new Text({ text: "{QTY}" })
-                    }));
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "UoM" }),
-                        template: new Text({ text: "{MaterialBaseUnit}" })
-                    }));
-
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Issue Location" }),
-                        template: new Text({ text: "{StorageLocation}" })
-                    }));
-
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Sales Order" }),
-                        template: new Text({ text: "{SDDocument}" })
-                    }));
-
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Sales Order Item" }),
-                        template: new Text({ text: "{SDDocumentItem}" })
-                    }));
-                    oTable.addColumn(new UIColumn({
-                        label: new Label({ text: "Batch" }),
-                        template: new Text({ text: "{Batch}" })
-                    }));
-
-
-                    oTable.bindRows({
-                        path: "/ZI_GET_BATCHES_311E"
+                // Check if any valid batch exists once data is loaded
+                oRowsBinding.attachEventOnce("dataReceived", function () {
+                    var aContexts = oRowsBinding.getContexts(0, oRowsBinding.getLength());
+                    var bHasValidBatch = aContexts.some(function (oCtx) {
+                        var oData = oCtx ? oCtx.getObject() : null;
+                        return oData && oData.Batch && oData.Batch.trim() !== "";
                     });
 
-                    var aFilters = [];
-                    if (oRowData.material) {
-                        aFilters.push(new Filter("Material", FilterOperator.EQ, oRowData.material));
+                    if (!bHasValidBatch) {
+                        // Close dialog and handle non-batch managed scenario
+                        oDialog.close();
+                        self._handleNoBatchMaintained(self._oCurrentBatchRowContext.getPath());
+                        return;
                     }
-                    if (oRowData.plant) {
-                        aFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
-                    }
-                    if (oRowData.salesOrder) {
-                        aFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
-                    }
-                    if (oRowData.salesOrderItem) {
-                        aFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
-                    }
-                    if (oRowData.issueLocation) {
-                        aFilters.push(new Filter("StorageLocation", FilterOperator.EQ, oRowData.issueLocation));
-                    }
+                });
+            }
+        } else if (oTable.bindItems) {
+            oTable.destroyColumns();
 
-                    var oRowsBinding = oTable.getBinding("rows");
-                    if (oRowsBinding) {
-                        oRowsBinding.filter(aFilters);
-                    }
-                } else if (oTable.bindItems) {
-                    oTable.destroyColumns();
+            oTable.addColumn(new MColumn({ header: new Label({ text: "Material" }) }));
+            oTable.addColumn(new MColumn({ header: new Label({ text: "Description" }) }));
+            oTable.addColumn(new MColumn({ header: new Label({ text: "Quantity" }) }));
+            oTable.addColumn(new MColumn({ header: new Label({ text: "UoM" }) }));
+            oTable.addColumn(new MColumn({ header: new Label({ text: "Batch" }) }));
 
-                    oTable.addColumn(new MColumn({
-                        header: new Label({ text: "Material" })
-                    }));
-                    oTable.addColumn(new MColumn({
-                        header: new Label({ text: "Description" })
-                    }));
-                    oTable.addColumn(new MColumn({
-                        header: new Label({ text: "Quantity" })
-                    }));
-                    oTable.addColumn(new MColumn({
-                        header: new Label({ text: "UoM" })
-                    }));
-                    oTable.addColumn(new MColumn({
-                        header: new Label({ text: "Batch" })
-                    }));
-
-                    oTable.bindItems({
-                        path: "/ZI_GET_BATCHES_311E",
-                        template: new ColumnListItem({
-                            cells: [
-                                new Text({ text: "{Material}" }),
-                                new Text({ text: "{ProductDescription}" }),
-                                new Text({ text: "{QTY}" }),
-                                new Text({ text: "{Batch}" }),
-                                new Text({ text: "{SDocument}" }),
-                                new Text({ text: "{SDocumentItem}" }),
-                            ]
-                        })
-                    });
-
-                    var aMobileFilters = [];
-                    if (oRowData.material) {
-                        aMobileFilters.push(new Filter("Material", FilterOperator.EQ, oRowData.material));
-                    }
-                    if (oRowData.plant) {
-                        aMobileFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
-                    }
-
-                    if (oRowData.salesOrder) {
-                        aMobileFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
-                    }
-
-                    if (oRowData.salesOrderItem) {
-                        aMobileFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
-                    }
-
-                    var oItemsBinding = oTable.getBinding("items");
-                    if (oItemsBinding) {
-                        oItemsBinding.filter(aMobileFilters);
-                    }
-                }
-
-                oDialog.update();
-                oDialog.open();
+            oTable.bindItems({
+                path: "/ZI_GET_BATCHES_311E",
+                template: new ColumnListItem({
+                    cells: [
+                        new Text({ text: "{Material}" }),
+                        new Text({ text: "{ProductDescription}" }),
+                        new Text({
+                            text: {
+                                parts: [{ path: "QTY" }, { path: "Batch" }],
+                                formatter: function (fQty, sBatch) {
+                                    if (!sBatch) return "0";
+                                    var sCurrentPath = self._oCurrentBatchRowContext ? self._oCurrentBatchRowContext.getPath() : "";
+                                    var oBatchData = { QTY: fQty, Batch: sBatch };
+                                    var fRemaining = self._getRemainingQtyForBatchSelection(oBatchData, sCurrentPath);
+                                    
+                                    return self._roundTo3Decimals(fRemaining).toFixed(3);
+                                }
+                            }
+                        }),
+                        new Text({ text: "{Batch}" }),
+                        new Text({ text: "{SDDocument}" }),
+                        new Text({ text: "{SDDocumentItem}" }),
+                    ]
+                })
             });
-        },
+
+            var aMobileFilters = [];
+            if (oRowData.material) {
+                aMobileFilters.push(new Filter("Material", FilterOperator.EQ, oRowData.material));
+            }
+            if (oRowData.plant) {
+                aMobileFilters.push(new Filter("Plant", FilterOperator.EQ, oRowData.plant));
+            }
+            if (oRowData.salesOrder) {
+                aMobileFilters.push(new Filter("SDDocument", FilterOperator.EQ, oRowData.salesOrder));
+            }
+            if (oRowData.salesOrderItem) {
+                aMobileFilters.push(new Filter("SDDocumentItem", FilterOperator.EQ, oRowData.salesOrderItem));
+            }
+
+            var oItemsBinding = oTable.getBinding("items");
+            if (oItemsBinding) {
+                oItemsBinding.filter(aMobileFilters);
+
+                oItemsBinding.attachEventOnce("dataReceived", function () {
+                    var aContexts = oItemsBinding.getContexts(0, oItemsBinding.getLength());
+                    var bHasValidBatch = aContexts.some(function (oCtx) {
+                        var oData = oCtx ? oCtx.getObject() : null;
+                        return oData && oData.Batch && oData.Batch.trim() !== "";
+                    });
+
+                    if (!bHasValidBatch) {
+                        oDialog.close();
+                        self._handleNoBatchMaintained(self._oCurrentBatchRowContext.getPath());
+                        return;
+                    }
+                });
+            }
+        }
+
+        oDialog.update();
+        oDialog.open();
+    });
+},
+
+_handleNoBatchMaintained: function (sPath) {
+    var oLocalModel = this.getView().getModel("local");
+    var oRowData = oLocalModel.getProperty(sPath);
+
+    if (!oRowData) {
+        return;
+    }
+
+    var fReqQty = parseFloat(oRowData.requiredQty) || 0;
+
+    // 1. Copy Required Qty to Issued Qty
+    oLocalModel.setProperty(sPath + "/issuedQty", fReqQty);
+    oLocalModel.setProperty(sPath + "/maxIssuedQty", fReqQty);
+    oLocalModel.setProperty(sPath + "/uom", oRowData.reqUom || "");
+
+    // 2. Clear Batch & ToBatch and disable Batch editing
+    oLocalModel.setProperty(sPath + "/batch", "");
+    oLocalModel.setProperty(sPath + "/toBatch", "");
+    oLocalModel.setProperty(sPath + "/isBatchEnabled", false); // Map to editable/enabled property in XML View
+
+    oLocalModel.refresh(true);
+
+    MessageToast.show("No batch maintained. Required quantity copied to Issue Quantity.");
+},
 
 
 
@@ -1086,7 +1246,8 @@ sap.ui.define([
                     salesOrder: "",
                     productionOrder: "",
                     lotNumber: "",
-                    headerPlant: ""
+                    headerPlant: "",
+                    ContractorName: ""
                 },
                 scannedBatches: []
             });
@@ -1200,6 +1361,7 @@ sap.ui.define([
             var oDateFormat = DateFormat.getDateInstance({ pattern: "yyyy-MM-dd" });
             var sFormattedDate = oDateFormat.format(oSelection.postingDate);
             var sReservation = String(oSelection.reservation).padStart(10, "0");
+            var sProdOrder = String(oSelection.productionOrder).padStart(12, "0")
 
             var aItemsPayload = aItemsToSubmit.map(function (oItem) {
                 return {
@@ -1214,7 +1376,7 @@ sap.ui.define([
                     "IssueLoc": oItem.issueLocation || "",
                     "Plant": oItem.plant || "",
                     "ToBatch": oItem.toBatch || "",
-                    "ProdOrd": oItem.productionOrder || "",
+                    "ProdOrd": oItem.productionOrder.padStart(12, "0") || "",
                     "ReceiveLoc": oItem.receivingLocation || "",
                     "SalesOrder": (oItem.salesOrder || "").padStart(10, "0"),
                     "SalesOrderItem": (oItem.salesOrderItem || "").padStart(6, "0")
@@ -1224,6 +1386,7 @@ sap.ui.define([
             var oPayload = {
                 "Reservation": sReservation,
                 "PostingDate": sFormattedDate,
+              
                 "_Item": aItemsPayload
             };
 
@@ -1254,7 +1417,8 @@ sap.ui.define([
                         salesOrder: "",
                         productionOrder: "",
                         lotNumber: "",
-                        headerPlant: ""
+                        headerPlant: "",
+                        ContractorName: ""
                     },
                     scannedBatches: []
                 });

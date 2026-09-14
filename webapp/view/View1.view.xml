@@ -92,6 +92,17 @@ value="{local>/selection/headerPlant}"
 editable="false"
 width="5.5rem" />
 </VBox>
+
+
+
+<VBox id="_IDGenVBox7" width="10rem" class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+<Label id="_IDGenLabel6" text="Contractor Name" />
+<Input id="_IDGenInput9"
+value="{local>/selection/ContractorName}"
+editable="false"
+width="9.5rem" />
+</VBox>
+
 </HBox>
 </content>
 
@@ -223,9 +234,9 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
 
                 <Text id="_IDGenText15" text="{local>reqUom}" />
 
-                <Input id="_IDGenInput4"
-                    value="{local>batch}"
-                    placeholder="Scan / Enter Batch"
+                <!-- <Input id="_IDGenInput4"
+                    value="{local>batch}" -->
+                    <!-- placeholder="Scan / Enter Batch"
                     width="100%"
                     showValueHelp="true"
                     valueHelpRequest=".onFromBatchValueHelp"
@@ -236,7 +247,22 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
                     value="{local>toBatch}"
                     placeholder="Enter To Batch"
                     width="100%"
-                    editable="true" />
+                    editable="true" /> -->
+
+                    <Input id="_IDGenInput4"
+    value="{local>batch}"
+    placeholder="Scan / Enter Batch"
+    width="100%"
+    showValueHelp="true"
+    valueHelpRequest=".onFromBatchValueHelp"
+    change=".onBatchChange"
+    editable="{local>isBatchEnabled}" />
+
+<Input id="_IDGenInput5"
+    value="{local>toBatch}"
+    placeholder="Enter To Batch"
+    width="100%"
+    editable="{local>isBatchEnabled}" />
 
                 <Input id="_IDGenInput6"
                     value="{local>issuedQty}"
