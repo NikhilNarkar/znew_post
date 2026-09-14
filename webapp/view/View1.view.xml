@@ -218,7 +218,7 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
     </columns>
 
     <items>
-        <ColumnListItem id="_IDGenColumnListItem"
+        <ColumnListItem id="_IDGenColumnListItem" 
             type="Inactive"
             vAlign="Middle">
 

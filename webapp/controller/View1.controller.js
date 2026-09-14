@@ -274,7 +274,7 @@ sap.ui.define([
     });
 
     await Promise.all(aPromises);
-},
+}, 
 
        _fetchReservationItems: async function (sReservation) {
     var oLocalModel = this.getView().getModel("local");
