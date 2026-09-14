@@ -19,7 +19,7 @@ builder:
         app:
           name: ZNEW_POST
           package: ZPP_TRANSFER_POSTING
-          transport: EGFK901729
+          transport: EGFK902193
         exclude:
           - /test/
           - /localService/
