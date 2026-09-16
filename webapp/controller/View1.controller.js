@@ -198,7 +198,7 @@ sap.ui.define([
             }
         },
 
-       _checkBatchAndAutoAssign: async function (aItems) {
+        _checkBatchAndAutoAssign: async function (aItems) {
     var self = this;
 
     var aPromises = aItems.map(async function (oItem, iIndex) {
@@ -246,23 +246,15 @@ sap.ui.define([
             });
 
             if (aValidBatches.length === 0) {
-                // NO BATCH MAINTAINED
+                // NO BATCH MAINTAINED: Auto-copy required quantity to issued quantity & grey out batch fields
+                var fReqQty = parseFloat(oItem.requiredQty) || 0;
+
+                oItem.issuedQty = fReqQty;
+                oItem.maxIssuedQty = fReqQty;
+                oItem.uom = oItem.reqUom || "";
                 oItem.batch = "";
                 oItem.toBatch = "";
-                oItem.isBatchEnabled = false; // Disable batch input fields
-
-                // CHECK STOCK AVAILABILITY FIRST BEFORE AUTO-COPYING QUANTITY
-                if (oItem.stockAvailable) {
-                    var fReqQty = parseFloat(oItem.requiredQty) || 0;
-                    oItem.issuedQty = fReqQty;
-                    oItem.maxIssuedQty = fReqQty;
-                    oItem.uom = oItem.reqUom || "";
-                } else {
-                    // IF NO STOCK, KEEP QUANTITY EMPTY
-                    oItem.issuedQty = "";
-                    oItem.maxIssuedQty = 0;
-                    oItem.uom = "";
-                }
+                oItem.isBatchEnabled = false; // Controls enable/editable status in XML view
             } else {
                 // BATCH MAINTAINED: Keep batch fields enabled
                 oItem.isBatchEnabled = true;
@@ -274,7 +266,7 @@ sap.ui.define([
     });
 
     await Promise.all(aPromises);
-}, 
+},
 
        _fetchReservationItems: async function (sReservation) {
     var oLocalModel = this.getView().getModel("local");
@@ -784,10 +776,18 @@ _handleNoBatchMaintained: function (sPath) {
                 return;
             }
 
-            var fRemainingBeforeAllocation = this._getRemainingQtyForGroup(oCurrentRow);
-            var fIssueQtyToSet = this._roundTo3Decimals(
-                Math.min(fRemainingBatchQty, fRemainingBeforeAllocation)
-            );
+var fIssueQtyToSet = this._roundTo3Decimals(fRemainingBatchQty);
+
+oLocalModel.setProperty(sPath + "/batch", oSelectedData.Batch || "");
+oLocalModel.setProperty(sPath + "/material", oSelectedData.Material || "");
+oLocalModel.setProperty(sPath + "/description", oSelectedData.ProductDescription || "");
+oLocalModel.setProperty(sPath + "/issuedQty", fIssueQtyToSet);
+oLocalModel.setProperty(sPath + "/maxIssuedQty", fRemainingBatchQty);
+
+            // var fRemainingBeforeAllocation = this._getRemainingQtyForGroup(oCurrentRow);
+            // var fIssueQtyToSet = this._roundTo3Decimals(
+            //     Math.min(fRemainingBatchQty, fRemainingBeforeAllocation)
+            // );
 
             oLocalModel.setProperty(sPath + "/batch", oSelectedData.Batch || "");
             oLocalModel.setProperty(sPath + "/material", oSelectedData.Material || "");
@@ -940,10 +940,15 @@ _handleNoBatchMaintained: function (sPath) {
                     return;
                 }
 
-                var fRemainingBeforeAllocation = this._getRemainingQtyForGroup(oRowData);
-                var fIssueQtyToSet = this._roundTo3Decimals(
-                    Math.min(fRemainingBatchQty, fRemainingBeforeAllocation)
-                );
+                var fIssueQtyToSet = this._roundTo3Decimals(fRemainingBatchQty);
+
+oLocalModel.setProperty(sPath + "/issuedQty", fIssueQtyToSet);
+oLocalModel.setProperty(sPath + "/maxIssuedQty", fRemainingBatchQty);
+
+                // var fRemainingBeforeAllocation = this._getRemainingQtyForGroup(oRowData);
+                // var fIssueQtyToSet = this._roundTo3Decimals(
+                //     Math.min(fRemainingBatchQty, fRemainingBeforeAllocation)
+                // );
 
                 oLocalModel.setProperty(sPath + "/issuedQty", fIssueQtyToSet);
                 oLocalModel.setProperty(sPath + "/maxIssuedQty", fRemainingBatchQty);
