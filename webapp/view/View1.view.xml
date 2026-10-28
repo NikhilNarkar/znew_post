@@ -103,6 +103,16 @@ editable="false"
 width="9.5rem" />
 </VBox>
 
+<VBox id="_IDGenVBoxRemark" width="20rem" class="sapUiTinyMarginEnd sapUiTinyMarginBottom">
+    <Label id="_IDGenLabelRemark" text="Remark" />
+    <Input
+        id="inputRemark"
+        value="{local>/selection/remark}"
+        placeholder="Enter Remark"
+        editable="true"
+        width="19.5rem" />
+</VBox>
+
 </HBox>
 </content>
 

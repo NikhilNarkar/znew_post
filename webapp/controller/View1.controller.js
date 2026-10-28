@@ -1246,7 +1246,8 @@ _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
                         productionOrder: "",
                         lotNumber: "",
                         headerPlant: "",
-                        ContractorName: ""
+                        ContractorName: "",
+                        remark: ""
                     },
                     scannedBatches: []
                 });
@@ -1385,7 +1386,7 @@ _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
                 var oPayload = {
                     "Reservation": sReservation,
                     "PostingDate": sFormattedDate,
-                
+                "Remark": (oSelection.remark || "").trim(),
                     "_Item": aItemsPayload
                 };
 
@@ -1417,7 +1418,8 @@ _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
                             productionOrder: "",
                             lotNumber: "",
                             headerPlant: "",
-                            ContractorName: ""
+                            ContractorName: "",
+                            remark: ""
                         },
                         scannedBatches: []
                     });
