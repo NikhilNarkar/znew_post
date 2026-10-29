@@ -72,6 +72,7 @@
                         description: oItem.description || "",
                         requiredQty: parseFloat(String(oItem.requiredQty || 0).replace(/,/g, "")) || 0,
                         reqUom: oItem.reqUom || "",
+                        withdrawnQty: parseFloat(String(oItem.withdrawnQty || 0).replace(/,/g, "")) || 0,
                         batch: oItem.batch || "",
                         toBatch: oItem.toBatch || "",
                         issuedQty: parseFloat(String(oItem.issuedQty || 0).replace(/,/g, "")) || 0,
@@ -119,6 +120,7 @@
                     { label: "Description", property: "description", type: EdmType.String },
                     { label: "Required Qty", property: "requiredQty", type: EdmType.Number, scale: 3 },
                     { label: "Req UoM", property: "reqUom", type: EdmType.String },
+                    { label: "Withdrawn Qty", property: "withdrawnQty", type: EdmType.Number, scale: 3 },
                     { label: "From Batch", property: "batch", type: EdmType.String },
                     { label: "To Batch", property: "toBatch", type: EdmType.String },
                     { label: "Issued Qty", property: "issuedQty", type: EdmType.Number, scale: 3 },
@@ -303,7 +305,7 @@
                     requiredQty: fReqQty,
                     requiredQtyTotal: fReqQty,
                     reqUom: oItem.BaseUnit || "",
-
+withdrawnQty: parseFloat(oItem.WithDrawnQty) || 0,
                     batch: "",
                     toBatch: "",
                     issuedQty: "",
@@ -1219,11 +1221,15 @@ _getRemainingQtyForBatchSelection: function (oBatchData, sCurrentPath) {
                 var oNextItem = aItems[iNextIndex];
                 var aCells = oNextItem.getCells();
 
-                if (!aCells || aCells.length < 5) {
-                    return;
-                }
+                // if (!aCells || aCells.length < 5) {
+                //     return;
+                // }
 
-                var oNextFromBatchInput = aCells[4];
+                // var oNextFromBatchInput = aCells[4];
+
+                var oNextFromBatchInput = (aCells || []).find(function (oCell) {
+    return oCell.getId().indexOf("_IDGenInput4") !== -1;
+});
 
                 if (oNextFromBatchInput && oNextFromBatchInput.focus) {
                     sap.ui.getCore().applyChanges();

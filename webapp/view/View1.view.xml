@@ -190,6 +190,10 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
             <Text id="_IDGenText4" text="Req UoM" />
         </Column>
 
+        <Column id="_IDGenColumnWithdrawn" width="8rem" hAlign="End" importance="High">
+    <Text id="_IDGenTextWithdrawnHdr" text="Withdrawn Qty" />
+</Column>
+
         <Column id="_IDGenColumn5" width="9rem" importance="High">
             <Text id="_IDGenText5" text="From Batch" />
         </Column>
@@ -243,6 +247,8 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
                     number="{local>requiredQty}" />
 
                 <Text id="_IDGenText15" text="{local>reqUom}" />
+                <ObjectNumber id="_IDGenObjNumWithdrawn"
+    number="{local>withdrawnQty}" />
 
                 <!-- <Input id="_IDGenInput4"
                     value="{local>batch}"
