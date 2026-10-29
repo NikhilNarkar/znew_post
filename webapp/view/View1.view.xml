@@ -194,6 +194,10 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
     <Text id="_IDGenTextWithdrawnHdr" text="Withdrawn Qty" />
 </Column>
 
+<Column id="_IDGenColumnPending" width="7rem" hAlign="End" importance="High">
+    <Text id="_IDGenTextPendingHdr" text="Pending Qty" />
+</Column>
+
         <Column id="_IDGenColumn5" width="9rem" importance="High">
             <Text id="_IDGenText5" text="From Batch" />
         </Column>
@@ -249,6 +253,10 @@ class="sapUiSmallMarginTop sapUiSmallMarginBottom" />
                 <Text id="_IDGenText15" text="{local>reqUom}" />
                 <ObjectNumber id="_IDGenObjNumWithdrawn"
     number="{local>withdrawnQty}" />
+
+    <ObjectNumber id="_IDGenObjNumPending"
+    number="{local>pendingQty}"
+    state="Warning" />
 
                 <!-- <Input id="_IDGenInput4"
                     value="{local>batch}"
