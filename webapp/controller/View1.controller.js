@@ -254,7 +254,7 @@
                     var fReqQty = parseFloat(oItem.requiredQty) || 0;
 
                     oItem.issuedQty = fReqQty;
-                    oItem.maxIssuedQty = fReqQty;
+                    oItem.maxIssuedQty = "";
                     oItem.uom = oItem.reqUom || "";
                     oItem.batch = "";
                     oItem.toBatch = "";
@@ -719,7 +719,7 @@ oTable.addColumn(new UIColumn({
 
         // 1. Copy Required Qty to Issued Qty
         oLocalModel.setProperty(sPath + "/issuedQty", fReqQty);
-        oLocalModel.setProperty(sPath + "/maxIssuedQty", fReqQty);
+        oLocalModel.setProperty(sPath + "/maxIssuedQty", "");
         oLocalModel.setProperty(sPath + "/uom", oRowData.reqUom || "");
 
         // 2. Clear Batch & ToBatch and disable Batch editing
